@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 
-const API_BASE = '/api/dashboard';
+const API_BASE = 'https://telemetry-dashboard-six.vercel.app/api/dashboard';
 
 function useFetch(endpoint, days) {
   const [data, setData] = useState(null);
