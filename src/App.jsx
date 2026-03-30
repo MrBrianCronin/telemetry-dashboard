@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { BarChart, Bar, LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
+import React, { useState, useEffect } from 'react';
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 
 const API_BASE = '/api/dashboard';
 
@@ -8,6 +8,7 @@ function useFetch(endpoint, days) {
   const [loading, setLoading] = useState(true);
   useEffect(() => {
     setLoading(true);
+    setData(null);
     fetch(`${API_BASE}/${endpoint}?days=${days}`)
       .then(r => r.json())
       .then(d => { setData(d); setLoading(false); })
@@ -16,6 +17,58 @@ function useFetch(endpoint, days) {
   return { data, loading };
 }
 
+// ── Skeleton Components ──
+function SkeletonBlock({ width = '100%', height = 16, style }) {
+  return (
+    <div className="skeleton-pulse" style={{
+      width, height, borderRadius: 6, background: '#E8EBF0', ...style,
+    }} />
+  );
+}
+
+function SkeletonKPI() {
+  return (
+    <div style={{
+      background: '#fff', borderRadius: 16, padding: '24px 20px', border: '1px solid #E2E6EF',
+      display: 'flex', flexDirection: 'column', gap: 8,
+    }}>
+      <SkeletonBlock width={80} height={12} />
+      <SkeletonBlock width={60} height={32} />
+      <SkeletonBlock width={90} height={12} />
+    </div>
+  );
+}
+
+function SkeletonChart() {
+  return (
+    <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8, height: 200, padding: '20px 0' }}>
+      {[40, 65, 45, 80, 55, 70, 50, 85, 60, 75, 45, 90].map((h, i) => (
+        <div key={i} className="skeleton-pulse" style={{
+          flex: 1, height: `${h}%`, borderRadius: '4px 4px 0 0', background: '#E8EBF0',
+          animationDelay: `${i * 0.05}s`,
+        }} />
+      ))}
+    </div>
+  );
+}
+
+function SkeletonBars({ count = 5 }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      {Array.from({ length: count }).map((_, i) => (
+        <div key={i}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+            <SkeletonBlock width={80 + Math.random() * 60} height={13} />
+            <SkeletonBlock width={30} height={13} />
+          </div>
+          <SkeletonBlock height={6} width={`${90 - i * 15}%`} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ── Real Components ──
 function KPICard({ label, value, sub, color = '#4F6EF7' }) {
   return (
     <div style={{
@@ -72,7 +125,7 @@ function FunnelBar({ steps, color = '#4F6EF7' }) {
               <div style={{
                 width: `${pct}%`, height: '100%', borderRadius: 6,
                 background: `linear-gradient(90deg, ${color}, ${color}88)`,
-                transition: 'width 0.5s ease',
+                transition: 'width 0.6s ease',
               }} />
             </div>
           </div>
@@ -88,20 +141,16 @@ function HorizontalBarList({ items, color = '#4F6EF7', emptyText = 'No data yet'
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
       {items.map(item => {
+        const label = item.ticker || item.value || item.query || item.category || item.match_label;
         const pct = (parseInt(item.count) / max) * 100;
         return (
-          <div key={item.ticker || item.value || item.query || item.category || item.match_label}>
+          <div key={label}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
-              <span style={{ fontSize: 13, fontWeight: 600, color: '#1A1F36', fontFamily: "'JetBrains Mono', monospace" }}>
-                {item.ticker || item.value || item.query || item.category || item.match_label}
-              </span>
+              <span style={{ fontSize: 13, fontWeight: 600, color: '#1A1F36', fontFamily: "'JetBrains Mono', monospace" }}>{label}</span>
               <span style={{ fontSize: 12, color: '#8792A8', fontFamily: "'JetBrains Mono', monospace" }}>{item.count}</span>
             </div>
             <div style={{ background: '#F0F1F5', borderRadius: 4, height: 6, overflow: 'hidden' }}>
-              <div style={{
-                width: `${pct}%`, height: '100%', borderRadius: 4,
-                background: color, transition: 'width 0.5s ease',
-              }} />
+              <div style={{ width: `${pct}%`, height: '100%', borderRadius: 4, background: color, transition: 'width 0.6s ease' }} />
             </div>
           </div>
         );
@@ -111,6 +160,7 @@ function HorizontalBarList({ items, color = '#4F6EF7', emptyText = 'No data yet'
 }
 
 function formatDuration(seconds) {
+  if (!seconds || seconds === 0) return '0s';
   if (seconds < 60) return `${seconds}s`;
   const m = Math.floor(seconds / 60);
   const s = seconds % 60;
@@ -119,25 +169,31 @@ function formatDuration(seconds) {
 
 export default function App() {
   const [days, setDays] = useState(30);
-
-  const { data: overview, loading: loadingOverview } = useFetch('overview', days);
-  const { data: sessions, loading: loadingSessions } = useFetch('sessions', days);
-  const { data: popular, loading: loadingPopular } = useFetch('popular', days);
-  const { data: filters, loading: loadingFilters } = useFetch('filters', days);
-  const { data: funnel, loading: loadingFunnel } = useFetch('funnel', days);
-  const { data: searches, loading: loadingSearches } = useFetch('searches', days);
-
   const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
+
+  const { data: overview, loading: lo } = useFetch('overview', days);
+  const { data: sessions, loading: ls } = useFetch('sessions', days);
+  const { data: popular, loading: lp } = useFetch('popular', days);
+  const { data: filters, loading: lf } = useFetch('filters', days);
+  const { data: funnel, loading: lfu } = useFetch('funnel', days);
+  const { data: searches, loading: lse } = useFetch('searches', days);
 
   return (
     <>
       <style>{`
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body { background: #FAFBFD; font-family: 'DM Sans', sans-serif; color: #1A1F36; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
-        .dash-card { animation: fadeIn 0.3s ease both; }
-        .loading-pulse { animation: pulse 1.5s ease-in-out infinite; }
-        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+        @keyframes fadeUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+        @keyframes shimmer {
+          0% { background-position: -200% 0; }
+          100% { background-position: 200% 0; }
+        }
+        .skeleton-pulse {
+          background: linear-gradient(90deg, #E8EBF0 25%, #F0F2F5 50%, #E8EBF0 75%);
+          background-size: 200% 100%;
+          animation: shimmer 1.8s ease-in-out infinite;
+        }
+        .dash-section { animation: fadeUp 0.35s ease both; }
       `}</style>
 
       <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
@@ -150,7 +206,7 @@ export default function App() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <a href="/" style={{
               fontSize: 12, color: '#8792A8', textDecoration: 'none', fontWeight: 500,
-              fontFamily: "'DM Sans', sans-serif",
+              fontFamily: "'DM Sans', sans-serif", marginRight: 4,
             }}>← briancronin.ai</a>
             <div style={{
               width: 36, height: 36, borderRadius: 10,
@@ -185,12 +241,14 @@ export default function App() {
         <main style={{ flex: 1, padding: isMobile ? 16 : 32, maxWidth: 1200, width: '100%', margin: '0 auto' }}>
 
           {/* KPI Cards */}
-          <div className="dash-card" style={{
+          <div className="dash-section" style={{
             display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(5, 1fr)',
             gap: 16, marginBottom: 28,
           }}>
-            {loadingOverview ? (
-              <div className="loading-pulse" style={{ gridColumn: '1 / -1', textAlign: 'center', padding: 40, color: '#8792A8' }}>Loading...</div>
+            {lo ? (
+              <>
+                <SkeletonKPI /><SkeletonKPI /><SkeletonKPI /><SkeletonKPI /><SkeletonKPI />
+              </>
             ) : overview ? (
               <>
                 <KPICard label="Sessions" value={overview.total_sessions} sub={`Last ${days} days`} color="#4F6EF7" />
@@ -203,64 +261,64 @@ export default function App() {
           </div>
 
           {/* Sessions Over Time */}
-          <Card style={{ marginBottom: 28 }} className="dash-card">
+          <Card style={{ marginBottom: 28 }}>
             <SectionTitle icon="📈">Sessions Over Time</SectionTitle>
-            {loadingSessions ? (
-              <div className="loading-pulse" style={{ height: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#8792A8' }}>Loading chart...</div>
+            {ls ? (
+              <SkeletonChart />
             ) : sessions?.daily?.length > 0 ? (
-              <ResponsiveContainer width="100%" height={250}>
-                <LineChart data={sessions.daily}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#F0F1F5" />
-                  <XAxis dataKey="date" tick={{ fontSize: 11, fill: '#8792A8' }} tickFormatter={d => new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} />
-                  <YAxis tick={{ fontSize: 11, fill: '#8792A8' }} allowDecimals={false} />
-                  <Tooltip
-                    contentStyle={{ borderRadius: 10, border: '1px solid #E2E6EF', fontSize: 12, fontFamily: "'DM Sans', sans-serif" }}
-                    labelFormatter={d => new Date(d).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
-                  />
-                  <Line type="monotone" dataKey="sessions" stroke="#4F6EF7" strokeWidth={2.5} dot={{ fill: '#4F6EF7', r: 3 }} name="Sessions" />
-                  <Line type="monotone" dataKey="page_views" stroke="#10B981" strokeWidth={2} dot={false} strokeDasharray="5 5" name="Page Views" />
-                </LineChart>
-              </ResponsiveContainer>
+              <div className="dash-section">
+                <ResponsiveContainer width="100%" height={250}>
+                  <LineChart data={sessions.daily}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#F0F1F5" />
+                    <XAxis dataKey="date" tick={{ fontSize: 11, fill: '#8792A8' }} tickFormatter={d => new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} />
+                    <YAxis tick={{ fontSize: 11, fill: '#8792A8' }} allowDecimals={false} />
+                    <Tooltip
+                      contentStyle={{ borderRadius: 10, border: '1px solid #E2E6EF', fontSize: 12, fontFamily: "'DM Sans', sans-serif" }}
+                      labelFormatter={d => new Date(d).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                    />
+                    <Line type="monotone" dataKey="sessions" stroke="#4F6EF7" strokeWidth={2.5} dot={{ fill: '#4F6EF7', r: 3 }} name="Sessions" />
+                    <Line type="monotone" dataKey="page_views" stroke="#10B981" strokeWidth={2} dot={false} strokeDasharray="5 5" name="Page Views" />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
             ) : (
               <p style={{ color: '#8792A8', fontSize: 13, padding: '40px 0', textAlign: 'center' }}>No session data for this period</p>
             )}
           </Card>
 
-          {/* Two-column: Funnels */}
+          {/* Funnels */}
           <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 20, marginBottom: 28 }}>
-            <Card className="dash-card">
+            <Card className="dash-section">
               <SectionTitle icon="🔎">ETF Finder Funnel</SectionTitle>
-              {loadingFunnel ? <div className="loading-pulse" style={{ color: '#8792A8' }}>Loading...</div>
-                : <FunnelBar steps={funnel?.etf_finder?.steps} color="#4F6EF7" />}
+              {lfu ? <SkeletonBars count={4} /> : <FunnelBar steps={funnel?.etf_finder?.steps} color="#4F6EF7" />}
             </Card>
-            <Card className="dash-card">
+            <Card className="dash-section" style={{ animationDelay: '0.05s' }}>
               <SectionTitle icon="🚗">Vehicle Assistant Funnel</SectionTitle>
-              {loadingFunnel ? <div className="loading-pulse" style={{ color: '#8792A8' }}>Loading...</div>
-                : <FunnelBar steps={funnel?.car_finder?.steps} color="#D4A574" />}
+              {lfu ? <SkeletonBars count={4} /> : <FunnelBar steps={funnel?.car_finder?.steps} color="#D4A574" />}
             </Card>
           </div>
 
-          {/* Two-column: Popular ETFs */}
+          {/* Popular ETFs */}
           <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 20, marginBottom: 28 }}>
-            <Card className="dash-card">
+            <Card className="dash-section">
               <SectionTitle icon="👀">Most Viewed ETFs</SectionTitle>
-              {loadingPopular ? <div className="loading-pulse" style={{ color: '#8792A8' }}>Loading...</div>
-                : <HorizontalBarList items={popular?.most_expanded} color="#4F6EF7" emptyText="No ETF views recorded yet" />}
+              {lp ? <SkeletonBars count={5} /> : <HorizontalBarList items={popular?.most_expanded} color="#4F6EF7" emptyText="No ETF views recorded yet" />}
             </Card>
-            <Card className="dash-card">
+            <Card className="dash-section" style={{ animationDelay: '0.05s' }}>
               <SectionTitle icon="📦">Most Added to Package</SectionTitle>
-              {loadingPopular ? <div className="loading-pulse" style={{ color: '#8792A8' }}>Loading...</div>
-                : <HorizontalBarList items={popular?.most_added} color="#10B981" emptyText="No package additions yet" />}
+              {lp ? <SkeletonBars count={5} /> : <HorizontalBarList items={popular?.most_added} color="#10B981" emptyText="No package additions yet" />}
             </Card>
           </div>
 
           {/* Filter Usage */}
-          <Card style={{ marginBottom: 28 }} className="dash-card">
+          <Card style={{ marginBottom: 28 }}>
             <SectionTitle icon="⚙️">Filter Usage</SectionTitle>
-            {loadingFilters ? (
-              <div className="loading-pulse" style={{ color: '#8792A8' }}>Loading...</div>
-            ) : filters?.categories?.length > 0 ? (
+            {lf ? (
               <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)', gap: 20 }}>
+                <SkeletonBars count={4} /><SkeletonBars count={4} /><SkeletonBars count={4} />
+              </div>
+            ) : filters?.categories?.length > 0 ? (
+              <div className="dash-section" style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)', gap: 20 }}>
                 {filters.categories.map(cat => (
                   <div key={cat.category}>
                     <div style={{
@@ -278,32 +336,30 @@ export default function App() {
             )}
           </Card>
 
-          {/* Two-column: Searches + App Breakdown */}
+          {/* Searches + App Breakdown */}
           <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 20, marginBottom: 28 }}>
-            <Card className="dash-card">
+            <Card className="dash-section">
               <SectionTitle icon="🔍">Search Terms</SectionTitle>
-              {loadingSearches ? <div className="loading-pulse" style={{ color: '#8792A8' }}>Loading...</div>
-                : <HorizontalBarList items={searches?.searches} color="#F59E0B" emptyText="No searches recorded yet" />}
+              {lse ? <SkeletonBars count={5} /> : <HorizontalBarList items={searches?.searches} color="#F59E0B" emptyText="No searches recorded yet" />}
             </Card>
-            <Card className="dash-card">
+            <Card className="dash-section" style={{ animationDelay: '0.05s' }}>
               <SectionTitle icon="📊">Events by App</SectionTitle>
-              {loadingOverview ? <div className="loading-pulse" style={{ color: '#8792A8' }}>Loading...</div>
-                : overview?.by_app?.length > 0 ? (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                    {overview.by_app.map(app => (
-                      <div key={app.page} style={{
-                        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                        padding: '12px 16px', background: '#FAFBFD', borderRadius: 10, border: '1px solid #E2E6EF',
-                      }}>
-                        <span style={{ fontSize: 14, fontWeight: 600, color: '#1A1F36', fontFamily: "'DM Sans', sans-serif" }}>{app.page}</span>
-                        <div style={{ textAlign: 'right' }}>
-                          <div style={{ fontSize: 14, fontWeight: 700, color: '#4F6EF7', fontFamily: "'JetBrains Mono', monospace" }}>{app.events} events</div>
-                          <div style={{ fontSize: 11, color: '#8792A8' }}>{app.sessions} sessions</div>
-                        </div>
+              {lo ? <SkeletonBars count={2} /> : overview?.by_app?.length > 0 ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  {overview.by_app.map(app => (
+                    <div key={app.page} style={{
+                      display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                      padding: '12px 16px', background: '#FAFBFD', borderRadius: 10, border: '1px solid #E2E6EF',
+                    }}>
+                      <span style={{ fontSize: 14, fontWeight: 600, color: '#1A1F36', fontFamily: "'DM Sans', sans-serif" }}>{app.page}</span>
+                      <div style={{ textAlign: 'right' }}>
+                        <div style={{ fontSize: 14, fontWeight: 700, color: '#4F6EF7', fontFamily: "'JetBrains Mono', monospace" }}>{app.events} events</div>
+                        <div style={{ fontSize: 11, color: '#8792A8' }}>{app.sessions} sessions</div>
                       </div>
-                    ))}
-                  </div>
-                ) : <p style={{ color: '#8792A8', fontSize: 13 }}>No data yet</p>}
+                    </div>
+                  ))}
+                </div>
+              ) : <p style={{ color: '#8792A8', fontSize: 13 }}>No data yet</p>}
             </Card>
           </div>
 
@@ -311,8 +367,8 @@ export default function App() {
 
         {/* Footer */}
         <footer style={{
-          background: '#fff', borderTop: '1px solid #E2E6EF', padding: '16px 32px',
-          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+          background: '#fff', borderTop: '1px solid #E2E6EF', padding: isMobile ? '12px 16px' : '16px 32px',
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8,
           fontSize: 12, color: '#8792A8', fontFamily: "'DM Sans', sans-serif",
         }}>
           <span>Telemetry Dashboard · <a href="/" style={{ color: '#4F6EF7', textDecoration: 'none' }}>briancronin.ai</a></span>
