@@ -6,17 +6,15 @@ export default async function handler(req, res) {
 
   const sql = neon(process.env.DATABASE_URL);
   const daysInt = Math.min(parseInt(req.query.days) || 30, 90);
+  const app = req.query.app || null;
 
   try {
-    const filterEvents = await sql`
-      SELECT event_data->'filters' as filters
-      FROM events
-      WHERE event_type = 'filter_applied' AND created_at > NOW() - make_interval(days => ${daysInt})
-    `;
+    const filterEvents = app
+      ? await sql`SELECT event_data->'filters' as filters FROM events WHERE event_type = 'filter_applied' AND created_at > NOW() - make_interval(days => ${daysInt}) AND page = ${app}`
+      : await sql`SELECT event_data->'filters' as filters FROM events WHERE event_type = 'filter_applied' AND created_at > NOW() - make_interval(days => ${daysInt})`;
 
     const categoryCounts = {};
     const valueCounts = {};
-
     for (const row of filterEvents) {
       const filters = row.filters;
       if (!filters || typeof filters !== 'object') continue;
@@ -32,7 +30,6 @@ export default async function handler(req, res) {
         }
       }
     }
-
     const sortedCategories = Object.entries(categoryCounts)
       .sort((a, b) => b[1] - a[1])
       .map(([category, count]) => ({
@@ -41,7 +38,6 @@ export default async function handler(req, res) {
           .sort((a, b) => b[1] - a[1]).slice(0, 8)
           .map(([value, cnt]) => ({ value, count: cnt })),
       }));
-
     return res.status(200).json({ total_filter_events: filterEvents.length, categories: sortedCategories });
   } catch (error) {
     console.error('Filters error:', error);

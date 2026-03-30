@@ -6,26 +6,46 @@ export default async function handler(req, res) {
 
   const sql = neon(process.env.DATABASE_URL);
   const daysInt = Math.min(parseInt(req.query.days) || 30, 90);
+  const app = req.query.app || null;
 
   try {
-    const [totalEvents] = await sql`SELECT COUNT(*) as count FROM events WHERE created_at > NOW() - make_interval(days => ${daysInt})`;
-    const [totalSessions] = await sql`SELECT COUNT(DISTINCT session_id) as count FROM events WHERE created_at > NOW() - make_interval(days => ${daysInt})`;
-    const [pageViews] = await sql`SELECT COUNT(*) as count FROM events WHERE event_type = 'page_view' AND created_at > NOW() - make_interval(days => ${daysInt})`;
-    const [loggedInUsers] = await sql`SELECT COUNT(DISTINCT user_id) as count FROM events WHERE user_id IS NOT NULL AND created_at > NOW() - make_interval(days => ${daysInt})`;
-    
-    const avgDuration = await sql`
-      SELECT COALESCE(AVG(duration), 0) as avg_seconds FROM (
-        SELECT session_id, EXTRACT(EPOCH FROM (MAX(created_at) - MIN(created_at))) as duration
-        FROM events WHERE created_at > NOW() - make_interval(days => ${daysInt})
-        GROUP BY session_id HAVING COUNT(*) > 1
-      ) sub
-    `;
+    let totalEvents, totalSessions, pageViews, loggedInUsers, avgDuration, byApp;
 
-    const byApp = await sql`
-      SELECT page, COUNT(*) as events, COUNT(DISTINCT session_id) as sessions
-      FROM events WHERE created_at > NOW() - make_interval(days => ${daysInt})
-      GROUP BY page ORDER BY events DESC
-    `;
+    if (app) {
+      [totalEvents] = await sql`SELECT COUNT(*) as count FROM events WHERE created_at > NOW() - make_interval(days => ${daysInt}) AND page = ${app}`;
+      [totalSessions] = await sql`SELECT COUNT(DISTINCT session_id) as count FROM events WHERE created_at > NOW() - make_interval(days => ${daysInt}) AND page = ${app}`;
+      [pageViews] = await sql`SELECT COUNT(*) as count FROM events WHERE event_type = 'page_view' AND created_at > NOW() - make_interval(days => ${daysInt}) AND page = ${app}`;
+      [loggedInUsers] = await sql`SELECT COUNT(DISTINCT user_id) as count FROM events WHERE user_id IS NOT NULL AND created_at > NOW() - make_interval(days => ${daysInt}) AND page = ${app}`;
+      avgDuration = await sql`
+        SELECT COALESCE(AVG(duration), 0) as avg_seconds FROM (
+          SELECT session_id, EXTRACT(EPOCH FROM (MAX(created_at) - MIN(created_at))) as duration
+          FROM events WHERE created_at > NOW() - make_interval(days => ${daysInt}) AND page = ${app}
+          GROUP BY session_id HAVING COUNT(*) > 1
+        ) sub
+      `;
+      byApp = await sql`
+        SELECT page, COUNT(*) as events, COUNT(DISTINCT session_id) as sessions
+        FROM events WHERE created_at > NOW() - make_interval(days => ${daysInt}) AND page = ${app}
+        GROUP BY page ORDER BY events DESC
+      `;
+    } else {
+      [totalEvents] = await sql`SELECT COUNT(*) as count FROM events WHERE created_at > NOW() - make_interval(days => ${daysInt})`;
+      [totalSessions] = await sql`SELECT COUNT(DISTINCT session_id) as count FROM events WHERE created_at > NOW() - make_interval(days => ${daysInt})`;
+      [pageViews] = await sql`SELECT COUNT(*) as count FROM events WHERE event_type = 'page_view' AND created_at > NOW() - make_interval(days => ${daysInt})`;
+      [loggedInUsers] = await sql`SELECT COUNT(DISTINCT user_id) as count FROM events WHERE user_id IS NOT NULL AND created_at > NOW() - make_interval(days => ${daysInt})`;
+      avgDuration = await sql`
+        SELECT COALESCE(AVG(duration), 0) as avg_seconds FROM (
+          SELECT session_id, EXTRACT(EPOCH FROM (MAX(created_at) - MIN(created_at))) as duration
+          FROM events WHERE created_at > NOW() - make_interval(days => ${daysInt})
+          GROUP BY session_id HAVING COUNT(*) > 1
+        ) sub
+      `;
+      byApp = await sql`
+        SELECT page, COUNT(*) as events, COUNT(DISTINCT session_id) as sessions
+        FROM events WHERE created_at > NOW() - make_interval(days => ${daysInt})
+        GROUP BY page ORDER BY events DESC
+      `;
+    }
 
     return res.status(200).json({
       total_events: parseInt(totalEvents.count),

@@ -16,7 +16,6 @@ export default async function handler(req, res) {
         COUNT(DISTINCT session_id) FILTER (WHERE event_type IN ('etf_added_to_package', 'deep_link_clicked')) as acted
       FROM events WHERE created_at > NOW() - make_interval(days => ${daysInt})
     `;
-
     const carFunnel = await sql`
       SELECT 
         COUNT(DISTINCT session_id) FILTER (WHERE event_type = 'page_view' AND page = 'car-finder') as viewed,
@@ -25,7 +24,6 @@ export default async function handler(req, res) {
         COUNT(DISTINCT session_id) FILTER (WHERE event_type = 'deep_link_clicked' AND page = 'car-finder') as clicked_link
       FROM events WHERE created_at > NOW() - make_interval(days => ${daysInt})
     `;
-
     return res.status(200).json({
       etf_finder: { steps: [
         { label: 'Visited', count: parseInt(funnel[0].viewed) },

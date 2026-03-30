@@ -10,15 +10,13 @@ export default async function handler(req, res) {
   try {
     const mostExpanded = await sql`
       SELECT event_data->>'ticker' as ticker, COUNT(*) as count
-      FROM events
-      WHERE event_type = 'etf_expanded' AND created_at > NOW() - make_interval(days => ${daysInt})
+      FROM events WHERE event_type = 'etf_expanded' AND created_at > NOW() - make_interval(days => ${daysInt})
         AND event_data->>'ticker' IS NOT NULL
       GROUP BY event_data->>'ticker' ORDER BY count DESC LIMIT 15
     `;
     const mostAdded = await sql`
       SELECT event_data->>'ticker' as ticker, COUNT(*) as count
-      FROM events
-      WHERE event_type = 'etf_added_to_package' AND created_at > NOW() - make_interval(days => ${daysInt})
+      FROM events WHERE event_type = 'etf_added_to_package' AND created_at > NOW() - make_interval(days => ${daysInt})
         AND event_data->>'ticker' IS NOT NULL
       GROUP BY event_data->>'ticker' ORDER BY count DESC LIMIT 15
     `;
